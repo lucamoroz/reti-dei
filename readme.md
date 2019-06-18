@@ -426,6 +426,11 @@ Modify icmp echo to split the request into two IP datagrams, one with a payload
 size of 16 bytes and the other one with the requested payload size.
 
 ---
+
+### 10 July 2010
+A long time ago in a galaxy far, far away.. Modify ping.c with a ttl small enought to receive an ICMP time exceeded message and
+print the IP that generated that message.
+---
 </details>
 
 ## Homeworks
