@@ -43,7 +43,7 @@ unsigned char getStateAndToggle(unsigned int ip){
    unsigned char prev = state[ip % MAXN];
    printf("previous state: %d\n",prev);
    state[ip%MAXN] ^=1;
-   return prev; 
+   return prev;
 }
 int main() {
    int s, s2, t, j, i;  //s:socket per ricevere, t:variabile di supporto per gli errori

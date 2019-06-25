@@ -15,7 +15,7 @@ unsigned char mioip[4] = {88,80,187,84};
 unsigned char netmask[4] = { 255,255,255,0};
 unsigned char gateway[4] = { 88,80,187,1};
 */
-unsigned char miomac[6] = { 0x99,0x99,0x99,0x99,0x99,0x99 };
+unsigned char miomac[6] = { 0xb0,0xc0,0x90,0xa6,0x78,0xfb };
 unsigned char broadcast[6] = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
 unsigned char mioip[4] = { 192, 168, 1, 12 };
 unsigned char netmask[4] = { 255,255,255,0};
@@ -23,7 +23,6 @@ unsigned char gateway[4] = { 192,168,1,1};
 
 //unsigned char iptarget[4] = {88,80,187,80};
 unsigned char iptarget[4] = {147,162,2,100};
-//unsigned char iptarget[4] = {192,168,1,11};
 
 struct sockaddr_ll sll;
 
@@ -71,7 +70,6 @@ struct ip_datagram{
 
 
 void stampa_buffer( unsigned char* b, int quanti);
-
 
 void crea_eth(struct eth_frame * e , unsigned char * dest, unsigned short type){
   int i;
@@ -176,124 +174,89 @@ void crea_icmp_echo(struct icmp_packet * icmp, unsigned short id, unsigned short
   icmp->checksum=htons(checksum((unsigned char *)icmp,28));
 }
 
-// offset must be a power of 2
-void crea_ip(struct ip_datagram *ip, char more_frag, unsigned char offset, unsigned char proto, unsigned char *ipdest, unsigned char *payload_p, int payloadsize) {
+void crea_ip(struct ip_datagram *ip, int payloadsize,unsigned char  proto,unsigned char *ipdest) {
   ip-> ver_ihl = 0x45;
   ip->tos=0;
   ip->totlen=htons(payloadsize + 20);
   ip->id=htons(0xABCD);
-
-  unsigned short offs = offset;
-
-  offs = offs & 0x1FFF;  // mask first 3 bits
-  if (more_frag) {
-    //offs = offs | 0x2000;
-    offs |= 1UL << 13;
-  }
-  printf("\nflag_offs: %.2x\n", offs);
-  ip->flag_offs = htons(offs);
-
+  ip->flag_offs=htons(0);
   ip->ttl=128;
   ip->proto=proto;
   ip->checksum=htons(0);
   ip->saddr = *(unsigned int*) mioip ;
   ip->daddr = *(unsigned int*) ipdest;
-  for (int i = 0; i < payloadsize; i++)
-    ip->payload[i] = payload_p[i];
-
   ip->checksum=htons(checksum((unsigned char*)ip,20));
 };
+
+void build_echo_response(char *buffer) {
+
+}
 
 int main(){
   int t,s;
   unsigned char mac[6];
   unsigned char buffer[1500];
   struct icmp_packet * icmp;
-  struct icmp_packet *recvd_icmp;
   struct ip_datagram * ip;
   struct eth_frame * eth;
   int lungh,n;
-
-  // get target mac
-  if((*(unsigned int*)mioip & *(unsigned int*)netmask) == (*(unsigned int*)iptarget & *(unsigned int*)netmask))
-    t=risolvi(iptarget,mac);
-  else
-    t=risolvi(gateway,mac);
-  if  (t==0){
-    printf("Mac incognito:\n");
-    stampa_buffer(mac,6);
-  }
 
   // init raw socket
   s=socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
   if (s==-1) { perror("Socket fallita"); return 1;}
 
+  eth = (struct eth_frame *) buffer;
+  ip = (struct ip_datagram *) eth->payload;
+  icmp = (struct icmp_packet *) ip->payload;
+
   lungh = sizeof(struct sockaddr_ll);
   bzero(&sll,lungh);
   sll.sll_ifindex=3;
 
-  eth = (struct eth_frame *) buffer;
-  ip = (struct ip_datagram *) eth->payload;
-  recvd_icmp = (struct icmp_packet *) ip->payload;
-  // icmp = (struct icmp_packet *) ip->payload;
-
-  // split an ICMP echo message in 2 ip datagrams by choosing an ID for both
-  // datagrams and:
-  // 1st packet will have MF = 1 (more fragments) and Offset = 0, size 16 bytes
-  // 2nd packet will have MF = 0 and Offset = 16
-  // total size will be the same: 28 bytes (8 ICMP head, 20 useless payload)
-
-  // create the ICMP echo
-  unsigned char temp[1000];
-  icmp = (struct icmp_packet *) temp;
-  crea_icmp_echo(icmp, 0x1234, 1);
-
-  // create an IP datagram with first 16 bytes
-  // void crea_ip(struct ip_datagram *ip,  char more_frag, char offset, unsigned char proto, unsigned char *ipdest, unsigned char *payload_p, int payloadsize)
-  crea_ip(
-      ip,
-      1,   // more fragments
-      0,   // offset
-      1,   // ICMP protocol
-      iptarget,
-      temp, // payload pointer
-      16    // payload size: first 16 bytes of ICMP echo
-  );
-  crea_eth(eth, mac, 0x0800);
-
-  // printf("ICMP/IP/ETH:\n");
-  // stampa_buffer(buffer,14+20+8+20);
-
-  // 14 eth, 20 IP head, 16 first bytes of icmp echo
-  n = sendto(s, buffer, 14+20+16, 0, (struct sockaddr *) &sll, lungh);
-  if(n==-1) { perror("sendto fallita"); return 1;}
-
-  // create the ip packetint total_size, containing the rest of the ICMP echo
-  crea_ip(
-      ip,
-      0,   // no more fragments
-      2,   // offset: misured in units of 8 octets
-      1,   // ICMP protocol
-      iptarget,
-      temp+16, // payload pointer
-      12    // payload size: rest of ICMP echo 28-16=12
-  );
-
-  // stampa_buffer( buffer, 14+20+12);
-  n = sendto(s, buffer, 14+20+12, 0, (struct sockaddr *) &sll, lungh);
-  if(n==-1) { perror("sendto fallita"); return 1;}
-
-  printf("Attendo risposta...\n");
-  while( 1 ) {
+  while (1) {
     n = recvfrom(s, buffer, 1500, 0, (struct sockaddr *) &sll, &lungh);
-    if(n==-1) { perror("recvfrom fallita"); return 1;}
+    if (n==-1) { perror("recvfrom fallita"); return 1; }
+
     if (eth->type == htons(0x0800)
         && ip->proto == 1
-        && recvd_icmp->type == 0
-    ) {
-          printf("Risposta echo ricevuta!\n");
-          break;
-    }
+        && icmp->type == 8
+        && icmp->code == 0) {
 
+          printf("ICMP echo message received!\n");
+
+          // resolve source mac
+          unsigned int source_ip = ip->saddr;
+          if ((*(unsigned int*)netmask & source_ip) == (*(unsigned int*)netmask) & *(unsigned int*)mioip)
+            t = risolvi(source_ip, mac);
+          else
+            t = risolvi(gateway, mac);
+          if (t == -1) {
+            printf("Error resolving mac!\n");
+            return 1;
+          }
+
+          // get message sizes
+          unsigned short len_ip_header = (ip->ver_ihl & 0x0F) * 4;
+          unsigned short len_total = ntohs(ip->totlen);
+          int len_icmp = len_total- len_ip_header;
+
+          // check if payload size is 1047 (requested by exam)
+          if (len_icmp != (1047 + 8 /* icmp header */)) {
+            printf("Ignoring ping req.\n");
+            continue;
+          }
+
+          // prepare icmp response
+          crea_eth(eth , mac, 0x0800);
+          crea_ip(ip, len_icmp, 1, (unsigned char*)&source_ip);
+          // change icmp to echo response and recalc checksum
+          icmp->type = 0; // echo resp
+          icmp-> checksum = 0;
+          icmp->checksum = htons(checksum((unsigned char*)icmp, len_icmp));
+
+          // 14 eth + other len
+          n = sendto(s, buffer, 14 + len_total, 0, (struct sockaddr *) &sll, sizeof(sll));
+          if(n==-1) { perror("sendto fallita"); return 1;}
+    }
   }
 }

@@ -160,11 +160,11 @@ int main() {
    //free(entity);
 
    /*
-      p = response; 
+      p = response;
       while (t=read(s,p,100000)){
       p = p + t;
     *p=0;
-    }       
+    }
     */
 }  //Fine main
 
@@ -207,4 +207,3 @@ unsigned char *myhtonx(unsigned char *s, unsigned char *o, int size) {
       }
    return o;
 }
-

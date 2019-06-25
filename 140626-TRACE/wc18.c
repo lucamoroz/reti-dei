@@ -123,8 +123,7 @@ int main() {
 	if (content_length != 0) {
 		entity = malloc(content_length + 1);  //alloca la memoria per l'entity body
 		//Legge (content_lenghtsocket-i)byte dal socket s partendo dall'indirizzo (entity+i)
-		for (i = 0; (i < content_length) && (t = read(s, entity + i, content_length - i)); i = i + t)
-			;
+		for (i = 0; (i < content_length) && (t = read(s, entity + i, content_length - i)); i = i + t);
 		//Visualizzo a schermo il BODY
 		entity[i] = 0;
 		printf("%s", entity);
@@ -165,11 +164,11 @@ int main() {
 	//free(entity);
 
 	/*
-		p = response; 
+		p = response;
 		while (t=read(s,p,100000)){
 		p = p + t;
 	 *p=0;
-	 }       
+	 }
 	 */
 }  //Fine main
 
@@ -212,4 +211,3 @@ unsigned char *myhtonx(unsigned char *s, unsigned char *o, int size) {
 		}
 	return o;
 }
-
